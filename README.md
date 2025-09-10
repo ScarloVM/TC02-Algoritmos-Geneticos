@@ -1,1 +1,1 @@
-# TC02-Algoritmos-Gen-ticos
+# TC02-Algoritmos-Geneticos
