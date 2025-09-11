@@ -1,0 +1,5 @@
+gymnasium[classic-control]
+pygame
+numpy
+matplotlib
+streamlit
