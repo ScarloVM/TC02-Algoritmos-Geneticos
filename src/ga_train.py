@@ -1,18 +1,11 @@
 import os
 import numpy as np
 import gymnasium as gym
+from config import CONFIGURACIONES 
 
 # ------------------- Configuración -------------------
 SEED = 0
 np.random.seed(SEED)
-
-POBLACION = 60            # tamaño de la población
-GENERACIONES = 100        # número de generaciones
-ELITE = 4                 # cuántos mejores se copian directo
-TASA_MUTACION = 0.20      # prob. de mutar cada gen
-DESV_MUTACION = 0.20      # sigma del ruido gaussiano de mutación
-EPISODIOS_EVAL = 5        # episodios por individuo (promedia)
-PASOS_MAX = 200           # pasos máx. por episodio (bucle interno)
 
 RUTA_MEJOR = "models/best_theta.npz"
 
@@ -22,7 +15,7 @@ CARACT = 6                # [x, v, 1, x^2, v^2, x*v]
 
 # ------------------- Representación -------------------
 def caracteristicas(obs: np.ndarray) -> np.ndarray:
-    """Convierte la observación [x, v] en φ = [x, v, 1, x^2, v^2, x*v]."""
+    #Convierte la observación [x, v] en φ = [x, v, 1, x^2, v^2, x*v].
     x, v = obs
     return np.array([x, v, 1.0, x * x, v * v, x * v], dtype=np.float32)
 
@@ -39,7 +32,7 @@ def accion(obs: np.ndarray, theta: np.ndarray) -> int:
 
 
 # ------------------- Evaluación -------------------
-def evaluar_theta(theta: np.ndarray, seed_offset: int = 0):
+def evaluar_theta(theta: np.ndarray, EPISODIOS_EVAL: int, PASOS_MAX: int, seed_offset: int = 0):
     """
     Evalúa un individuo en EPISODIOS_EVAL episodios.
     Retorna:
@@ -77,7 +70,7 @@ def evaluar_theta(theta: np.ndarray, seed_offset: int = 0):
 
 # ------------------- Operadores GA -------------------
 def torneo(poblacion: np.ndarray, fitnesses: list[float], k: int = 3) -> np.ndarray:
-    """Selección por torneo: devuelve una copia del ganador."""
+    #Selección por torneo: devuelve una copia del ganador.
     idxs = np.random.choice(len(poblacion), k, replace=False)
     ganador = idxs[np.argmax([fitnesses[i] for i in idxs])]
     return poblacion[ganador].copy()
@@ -90,16 +83,33 @@ def cruce(p1: np.ndarray, p2: np.ndarray) -> np.ndarray:
     return hijo
 
 
-def mutar(hijo: np.ndarray) -> np.ndarray:
-    """Mutación gaussiana por gen con prob. TASA_MUTACION."""
+def mutar(hijo: np.ndarray, TASA_MUTACION: float, DESV_MUTACION: float) -> np.ndarray:
+    #Mutación gaussiana por gen con prob. TASA_MUTACION.
     mascara = np.random.rand(hijo.size) < TASA_MUTACION
     ruido = np.random.randn(hijo.size) * DESV_MUTACION
     return hijo + mascara * ruido
 
 
 # ------------------- Bucle principal -------------------
-def main():
+def ejecutarConfiguraciones(config_name, config_params):
+    print(f"\n{'='*60}")
+    print(f"EJECUTANDO CONFIGURACIÓN: {config_name}")
+    print(f"{'='*60}")
+    
+    # Extraer parámetros de la configuración
+    POBLACION = config_params['POBLACION']
+    GENERACIONES = config_params['GENERACIONES']
+    ELITE = config_params['ELITE']
+    TASA_MUTACION = config_params['TASA_MUTACION']
+    DESV_MUTACION = config_params['DESV_MUTACION']
+    EPISODIOS_EVAL = config_params['EPISODIOS_EVAL']
+    PASOS_MAX = config_params['PASOS_MAX']
+    
+    RUTA_MEJOR = f"models/best_theta_{config_name}.npz"
+
     os.makedirs("models", exist_ok=True)
+
+
 
     # Cromosoma: 3 acciones x 6 características = 18 genes
     poblacion = np.random.randn(POBLACION, ACCIONES * CARACT) * 0.5
@@ -114,7 +124,7 @@ def main():
 
         # Evaluar población
         for i, theta in enumerate(poblacion):
-            fit, r, xm = evaluar_theta(theta, seed_offset=g * 1000 + i * 10)
+            fit, r, xm = evaluar_theta(theta, seed_offset=g * 1000 + i * 10, EPISODIOS_EVAL=EPISODIOS_EVAL, PASOS_MAX=PASOS_MAX)
             fitnesses.append(fit)
             recomp_prom.append(r)
             xmax_prom.append(xm)
@@ -146,13 +156,19 @@ def main():
             p1 = torneo(poblacion, fitnesses, k=3)
             p2 = torneo(poblacion, fitnesses, k=3)
             hijo = cruce(p1, p2)
-            hijo = mutar(hijo)
+            hijo = mutar(hijo, TASA_MUTACION, DESV_MUTACION)
             nueva_poblacion.append(hijo)
 
         poblacion = np.stack(nueva_poblacion, axis=0)
 
     print(f"\nMejor fitness global: {mejor_fitness_global:.2f} | guardado en {RUTA_MEJOR}")
 
+def main():
+    for config_name, config_params in CONFIGURACIONES.items():
+        ejecutarConfiguraciones(config_name, config_params)
+        print(f"\n{'='*60}")
+        print(f"CONFIGURACIÓN {config_name} COMPLETADA")
+        print(f"{'='*60}\n")
 
 if __name__ == "__main__":
     main()
