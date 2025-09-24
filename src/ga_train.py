@@ -75,16 +75,14 @@ def torneo(poblacion: np.ndarray, fitnesses: list[float], k: int = 3) -> np.ndar
     ganador = idxs[np.argmax([fitnesses[i] for i in idxs])]
     return poblacion[ganador].copy()
 
-
+#Cruce uniforme gen a gen
 def cruce(p1: np.ndarray, p2: np.ndarray) -> np.ndarray:
-    """Cruce uniforme gen a gen."""
     mascara = np.random.rand(p1.size) < 0.5
     hijo = np.where(mascara, p1, p2)
     return hijo
 
-
+#Mutación gaussiana por gen con prob. TASA_MUTACION
 def mutar(hijo: np.ndarray, TASA_MUTACION: float, DESV_MUTACION: float) -> np.ndarray:
-    #Mutación gaussiana por gen con prob. TASA_MUTACION.
     mascara = np.random.rand(hijo.size) < TASA_MUTACION
     ruido = np.random.randn(hijo.size) * DESV_MUTACION
     return hijo + mascara * ruido
@@ -108,7 +106,17 @@ def ejecutarConfiguraciones(config_name, config_params):
     RUTA_MEJOR = f"models/best_theta_{config_name}.npz"
 
     os.makedirs("models", exist_ok=True)
+    os.makedirs("data", exist_ok=True)
 
+    historial = {
+        'fitness_max': [],
+        'fitness_prom': [],
+        'fitness_min': [],
+        'recompensa_prom': [],
+        'xmax_prom': [],
+        'config_name': config_name,
+        'parametros': config_params
+    }
 
 
     # Cromosoma: 3 acciones x 6 características = 18 genes
@@ -132,6 +140,15 @@ def ejecutarConfiguraciones(config_name, config_params):
         # Estadísticas de generación
         i_best_gen = int(np.argmax(fitnesses))
         fit_best_gen = float(fitnesses[i_best_gen])
+        fit_prom_gen = float(np.mean(fitnesses))
+        fit_min_gen = float(np.min(fitnesses))
+
+        # Guardar en historial
+        historial['fitness_max'].append(fit_best_gen)
+        historial['fitness_prom'].append(fit_prom_gen)
+        historial['fitness_min'].append(fit_min_gen)
+        historial['recompensa_prom'].append(np.mean(recomp_prom))
+        historial['xmax_prom'].append(np.mean(xmax_prom))
 
         if fit_best_gen > mejor_fitness_global:
             mejor_fitness_global = fit_best_gen
@@ -141,15 +158,14 @@ def ejecutarConfiguraciones(config_name, config_params):
         print(
             f"G{g:02d} | fit best: {fit_best_gen:7.2f} | "
             f"fit avg: {np.mean(fitnesses):7.2f} | "
+            f"fit min: {fit_min_gen:7.2f} | "
             f"rew avg: {np.mean(recomp_prom):6.2f} | "
             f"x_max: {np.mean(xmax_prom):.3f}"
         )
 
-        # Guardar top-30 de esta generación
-        orden = np.argsort(fitnesses)[::-1]
-
         # Nueva población con elitismo
-        nueva_poblacion = [poblacion[i].copy() for i in orden[:ELITE]]  # élites
+        orden = np.argsort(fitnesses)[::-1]
+        nueva_poblacion = [poblacion[i].copy() for i in orden[:ELITE]]
 
         # Resto: torneo + cruce + mutación
         while len(nueva_poblacion) < POBLACION:
@@ -161,14 +177,29 @@ def ejecutarConfiguraciones(config_name, config_params):
 
         poblacion = np.stack(nueva_poblacion, axis=0)
 
-    print(f"\nMejor fitness global: {mejor_fitness_global:.2f} | guardado en {RUTA_MEJOR}")
+    np.savez(f"data/historial_{config_name}.npz", **historial)
+    print(f"\nDatos guardados en: data/historial_{config_name}.npz")
+    print(f"Mejor fitness global: {mejor_fitness_global:.2f}")
+
+    return historial, mejor_theta
 
 def main():
+    resultados = {}
+
+
     for config_name, config_params in CONFIGURACIONES.items():
-        ejecutarConfiguraciones(config_name, config_params)
+
+        historial, mejor_theta = ejecutarConfiguraciones(config_name, config_params)
+        resultados[config_name] = {
+            'historial': historial,
+            'mejor_theta': mejor_theta
+        }
+
         print(f"\n{'='*60}")
         print(f"CONFIGURACIÓN {config_name} COMPLETADA")
         print(f"{'='*60}\n")
 
+    return resultados
+
 if __name__ == "__main__":
-    main()
+    resultados = main()
